@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Questionário de Enquadramento ICMS-ST</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS para planilhas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --brand-deep: #1e3a8a;
+            --brand-mid: #1d4ed8;
+            --brand-soft: #dbeafe;
+        }
+
+        html, body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        h1, h2, h3, h4, .display-font {
+            font-family: 'Poppins', sans-serif;
+            letter-spacing: -0.01em;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .progress-soft {
+            background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
+        }
+
+        .radio-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .radio-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(30, 58, 138, 0.08);
+        }
+        .radio-card input[type="radio"]:checked + div {
+            border-color: var(--brand-mid);
+            background-color: var(--brand-soft);
+            color: var(--brand-deep);
+        }
+        .radio-card input[type="radio"]:checked + div .radio-dot {
+            border-color: var(--brand-mid);
+            background-color: var(--brand-mid);
+            box-shadow: inset 0 0 0 3px #fff;
+        }
+
+        .hero-grad {
+            background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 60%, #2563eb 100%);
+        }
+
+        .subtle-grid {
+            background-image:
+                linear-gradient(rgba(30, 58, 138, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 58, 138, 0.04) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+
+        @media print {
+            body { background: #fff !important; }
+            header,
+            #alert-box,
+            #btn-prev,
+            #btn-next,
+            .no-print { display: none !important; }
+
+            main { padding: 0 !important; max-width: 100% !important; }
+
+            #card-container {
+                border: none !important;
+                box-shadow: none !important;
+                max-height: none !important;
+                overflow: visible !important;
+                border-radius: 0 !important;
+            }
+
+            .print-report { display: block !important; }
+
+            .print-product-card {
+                page-break-inside: avoid;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 16px;
+            }
+            .print-badge {
+                display: inline-block;
+                padding: 2px 10px;
+                border-radius: 999px;
+                font-weight: 600;
+                font-size: 12px;
+            }
+            .print-badge.sim { background: #dcfce7; color: #166534; }
+            .print-badge.nao { background: #fee2e2; color: #991b1b; }
+            .print-badge.pendente { background: #fef3c7; color: #92400e; }
+        }
+
+        .print-report { display: none; }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col subtle-grid">
+
+    <!-- Header Fixo -->
+    <header class="hero-grad text-white shadow-lg py-4 sticky top-0 z-40 no-print">
+        <div class="max-w-6xl mx-auto px-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center border border-white/20">
+                    <i class="ph ph-receipt text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold tracking-tight">Validação ICMS-ST</h1>
+                    <p class="text-[11px] text-blue-100/90 -mt-0.5">Questionário de Enquadramento Fiscal</p>
+                </div>
+            </div>
+            <button onclick="openAdminModal()" class="p-2.5 text-blue-100 hover:text-white hover:bg-white/10 rounded-xl transition-colors focus:outline-none flex items-center gap-2" title="Área Restrita">
+                <i class="ph ph-lock-key text-lg"></i>
+                <span class="hidden sm:inline text-xs font-semibold">Admin</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-grow max-w-6xl mx-auto w-full px-4 py-8 relative flex flex-col items-center">
+
+        <!-- Caixa de Alertas -->
+        <div id="alert-box" class="hidden mb-6 w-full max-w-3xl bg-red-50 border-l-4 border-red-500 p-4 rounded-r-md shadow-sm relative flex items-start gap-3 transition-all z-50 no-print">
+            <i class="ph ph-warning-circle text-2xl text-red-500 mt-0.5"></i>
+            <div class="flex-grow">
+                <strong class="font-bold text-red-800 block" id="alert-title">Atenção</strong>
+                <span class="block text-red-700 mt-1 text-sm" id="alert-message">Mensagem</span>
+            </div>
+            <button onclick="hideAlert()" class="text-red-400 hover:text-red-600">
+                <i class="ph ph-x text-lg"></i>
+            </button>
+        </div>
+
+        <!-- Tela Inicial (Visitante sem Link ou Carregando) -->
+        <section id="step-0-welcome" class="w-full max-w-2xl bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center transition-all duration-300">
+            <div class="w-20 h-20 bg-gradient-to-br from-blue-50 to-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-inner">
+                <i class="ph ph-clipboard-text text-4xl"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 mb-3" id="welcome-title">Validação ICMS-ST</h2>
+            <p id="welcome-status-text" class="text-slate-600 mb-6 text-sm max-w-md mx-auto leading-relaxed">
+                Verificando link de acesso...
+            </p>
+            <div id="loading-spinner" class="flex items-center justify-center gap-2 text-sm text-slate-500 bg-slate-50 py-2.5 px-5 rounded-xl inline-flex border border-slate-200">
+                <i class="ph ph-spinner-gap animate-spin text-lg"></i> Conectando...
+            </div>
+        </section>
+
+        <!-- Modal de Autenticação -->
+        <div id="admin-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 opacity-0 transition-opacity duration-300 no-print">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform scale-95 transition-transform duration-300" id="admin-modal-content">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="ph ph-lock-key text-blue-600 text-2xl"></i> Acesso Restrito
+                    </h3>
+                    <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 focus:outline-none">
+                        <i class="ph ph-x text-xl"></i>
+                    </button>
+                </div>
+                <p class="text-slate-500 mb-4 text-sm leading-relaxed">Insira a senha de administrador para acessar o painel de questionários e gerenciar links compartilhados.</p>
+                <input type="password" id="admin-password" class="w-full border border-slate-300 rounded-xl px-4 py-3 text-base mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="Digite a senha..." onkeypress="handleEnter(event)">
+                <button onclick="verifyPassword()" class="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold py-3 px-6 rounded-xl transition-colors flex justify-center items-center gap-2 shadow-md">
+                    Acessar Painel <i class="ph ph-arrow-right text-lg"></i>
+                </button>
+                <p class="text-[11px] text-center text-slate-400 mt-4">Senha padrão: <strong>admin123</strong> <br>(altere no código antes de publicar)</p>
+            </div>
+        </div>
+
+        <!-- Painel de Controle (Admin) -->
+        <section id="step-admin-dashboard" class="hidden w-full max-w-5xl bg-white rounded-2xl shadow-sm border border-slate-200 p-8 transition-all duration-300">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 border-b border-slate-100 pb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                        <i class="ph ph-folder-notch text-blue-600"></i> Meus Questionários
+                    </h2>
+                    <p class="text-slate-500 text-sm mt-1">Gerencie e compartilhe links com seus clientes.</p>
+                </div>
+                <button onclick="showUploadScreen()" class="bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-semibold py-3 px-5 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm shadow-md">
+                    <i class="ph ph-plus-circle text-lg"></i> Novo Questionário
+                </button>
+            </div>
+
+            <div id="dashboard-loading" class="text-center py-16 text-slate-400">
+                <i class="ph ph-spinner-gap animate-spin text-3xl mb-2"></i>
+                <p class="text-sm">Carregando questionários...</p>
+            </div>
+
+            <div id="questionnaires-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 hidden">
+            </div>
+        </section>
+
+        <!-- Tela de Upload (Admin) -->
+        <section id="step-1-upload" class="hidden w-full max-w-2xl bg-white rounded-2xl shadow-sm border border-slate-200 p-10 text-center transition-all duration-300 relative">
+            <button onclick="backToDashboard()" class="absolute top-6 left-6 text-slate-400 hover:text-blue-600 flex items-center gap-1 text-sm font-medium transition-colors">
+                <i class="ph ph-arrow-left"></i> Voltar
+            </button>
+
+            <div class="w-16 h-16 bg-gradient-to-br from-emerald-50 to-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 mt-4 shadow-inner border border-emerald-100">
+                <i class="ph ph-file-spreadsheet text-3xl"></i>
+            </div>
+            <h2 class="text-xl font-bold text-slate-800 mb-2">Criar Novo Questionário</h2>
+            <p class="text-slate-500 mb-6 text-xs px-8 leading-relaxed">
+                Carregue uma planilha preenchida com os dados dos produtos para gerar automaticamente um link exclusivo de compartilhamento.
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-2 justify-center mb-6">
+                <button onclick="downloadTemplate()" class="flex items-center justify-center gap-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 py-2.5 px-5 rounded-xl transition-colors border border-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <i class="ph ph-download-simple text-lg"></i> Baixar Planilha Modelo
+                </button>
+            </div>
+
+            <label for="file-upload" class="flex flex-col items-center justify-center w-full min-h-[180px] border-2 border-blue-200 border-dashed rounded-2xl cursor-pointer bg-slate-50 hover:bg-blue-50 transition-colors group relative overflow-hidden">
+                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition pointer-events-none bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.08),transparent_60%)]"></div>
+                <div class="flex flex-col items-center justify-center pt-8 pb-8 relative">
+                    <i class="ph ph-cloud-arrow-up text-4xl text-blue-400 mb-2 group-hover:text-blue-600 transition-colors"></i>
+                    <p class="mb-1 text-sm text-slate-600"><span class="font-bold text-blue-600">Clique para enviar</span> ou arraste a planilha</p>
+                    <p class="text-[11px] text-slate-400 mt-1">Formatos aceitos: .xlsx, .xls, .ods, .csv</p>
+                </div>
+                <input id="file-upload" type="file" class="hidden" accept=".xlsx, .xls, .ods, .csv" onchange="handleFileUpload(event)" />
+            </label>
+        </section>
+
+        <!-- Questionário (Slider) -->
+        <section id="step-2-questionnaire" class="hidden w-full max-w-3xl flex-col transition-all duration-500">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 mb-4 no-print">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold text-slate-700" id="progress-text">Produto 1 de 10</span>
+                    <span class="text-[11px] font-semibold px-2.5 py-1 bg-blue-100 text-blue-700 rounded-lg" id="progress-pct">10%</span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div id="progress-bar-fill" class="progress-soft h-2 rounded-full transition-all duration-500 ease-out" style="width: 10%"></div>
+                </div>
+            </div>
+
+            <div id="card-container" class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden flex flex-col max-h-[80vh]">
+                <div id="question-content" class="p-6 flex-grow flex flex-col fade-in overflow-y-auto">
+                </div>
+
+                <div class="bg-slate-50 p-4 border-t border-slate-200 flex justify-between items-center no-print">
+                    <button onclick="prevQuestion()" id="btn-prev" class="px-4 py-2.5 text-sm rounded-xl font-medium text-slate-600 bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center gap-2">
+                        <i class="ph ph-arrow-left"></i> Anterior
+                    </button>
+                    <button onclick="nextQuestion()" id="btn-next" class="px-5 py-2.5 text-sm rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-md active:scale-[0.99]">
+                        Próximo <i class="ph ph-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Relatório para impressão (visível só no @media print) -->
+            <div id="print-container" class="print-report w-full mt-4"></div>
+        </section>
+
+        <!-- Tela Final -->
+        <section id="step-3-finish" class="hidden w-full max-w-md bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center transition-all duration-500 mx-auto flex-col items-center justify-center">
+            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-4 border border-emerald-200">
+                <i class="ph ph-check-circle text-3xl"></i>
+            </div>
+            <h2 class="text-lg font-bold text-slate-800 mb-2">Questionário Concluído</h2>
+            <p class="text-sm text-slate-500 mb-6 leading-relaxed">
+                Suas respostas foram salvas. Clique abaixo para gerar o PDF do relatório consolidado.
+            </p>
+            <button onclick="processAndGeneratePDF()" id="btn-gerar-pdf" class="group bg-slate-50 hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 rounded-full w-16 h-16 flex justify-center items-center transition-all hover:scale-105 shadow-sm focus:outline-none mx-auto mb-2" title="Salvar em PDF">
+                <i class="ph ph-printer text-2xl group-hover:scale-110 transition-transform"></i>
+            </button>
+            <p class="text-[11px] text-slate-400 mb-6">Gerar / Imprimir PDF</p>
+            <button onclick="restartQuestionnaire()" class="text-xs text-slate-500 hover:text-blue-600 font-medium transition-colors no-print flex items-center gap-1 mx-auto">
+                <i class="ph ph-arrow-counter-clockwise"></i> Voltar ao início do questionário
+            </button>
+        </section>
+
+        <!-- Modal de Confirmação / Alerta Genérico -->
+        <div id="custom-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 opacity-0 transition-opacity duration-300 no-print">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-7 transform scale-95 transition-transform duration-300 text-center" id="custom-modal-content">
+                <div id="custom-modal-icon" class="mb-4 text-5xl flex justify-center"></div>
+                <h3 id="custom-modal-title" class="text-xl font-bold text-slate-800 mb-2">Título</h3>
+                <p id="custom-modal-message" class="text-slate-600 mb-6 text-sm whitespace-pre-wrap leading-relaxed">Mensagem</p>
+                <div id="custom-modal-actions" class="flex justify-center gap-3 flex-wrap">
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="py-5 text-center text-[11px] text-slate-400 no-print">
+        Validação ICMS-ST &middot; Uso interno / cliente &middot; Dados armazenados localmente
+    </footer>
+
+    <!-- Firebase SDKs (opcional) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'app-icms-st-prod';
+
+        // =========================================================================
+        // ATENÇÃO: PARA HOSPEDAR NO SEU FIREBASE, DESCOMENTE E COLE SUAS CHAVES AQUI
+        // =========================================================================
+        let firebaseConfig = {
+            // apiKey: "SUA_API_KEY",
+            // authDomain: "SEU_PROJETO.firebaseapp.com",
+            // projectId: "SEU_PROJETO",
+            // storageBucket: "SEU_PROJETO.appspot.com",
+            // messagingSenderId: "SEU_MESSAGING_SENDER_ID",
+            // appId: "SEU_APP_ID"
+        };
+
+        if (Object.keys(firebaseConfig).length === 0 && typeof __firebase_config !== 'undefined' && __firebase_config !== '{}') {
+            try { firebaseConfig = JSON.parse(__firebase_config); } catch(e) { firebaseConfig = {}; }
+        }
+
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth;
+        window.productData = [];
+        window.currentIndex = 0;
+        window.currentQuestionnaireId = null;
+
+        async function initFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length > 0) {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                    window.db = db;
+                } else {
+                    console.warn("Sem configuração do Firebase. Modo offline/local ativado.");
+                }
+            } catch (e) {
+                console.error("Erro na inicialização do Firebase:", e);
+                db = null;
+            }
+
+            checkUrlAndLoad();
+        }
+
+        window.checkUrlAndLoad = async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const qId = urlParams.get('id');
+
+            if (qId) {
+                window.currentQuestionnaireId = qId;
+                await loadSpecificQuestionnaire(qId);
+            } else {
+                showWelcomeEmpty("Acesse através do link fornecido pelo seu fornecedor.");
+            }
+        };
+
+        async function loadSpecificQuestionnaire(id) {
+            if (db && auth && auth.currentUser) {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'questionnaires', id);
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists() && docSnap.data().items) {
+                        window.productData = docSnap.data().items;
+                        transitionSections('step-0-welcome', 'step-2-questionnaire');
+                        renderCard(window.currentIndex);
+                        return;
+                    }
+                } catch (err) {
+                    console.warn("Falha ao ler da nuvem, tentando local...", err);
+                }
+            }
+
+            const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+            if (localQsts[id] && localQsts[id].items) {
+                window.productData = localQsts[id].items;
+                transitionSections('step-0-welcome', 'step-2-questionnaire');
+                renderCard(window.currentIndex);
+            } else {
+                showWelcomeEmpty("Questionário não encontrado. Verifique o link fornecido.");
+            }
+        }
+
+        window.saveDataToCloud = async function(items) {
+            if (db && auth && auth.currentUser && window.currentQuestionnaireId) {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'questionnaires', window.currentQuestionnaireId);
+                    await setDoc(docRef, { items: items }, { merge: true });
+                } catch (err) {
+                    console.error("Aviso: Falha ao salvar no Firestore.", err);
+                }
+            }
+            if (window.currentQuestionnaireId) {
+                const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+                if (localQsts[window.currentQuestionnaireId]) {
+                    localQsts[window.currentQuestionnaireId].items = items;
+                    localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
+                }
+            }
+        };
+
+        window.deleteFromCloud = async function(id) {
+            if (db && auth && auth.currentUser) {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'questionnaires', id);
+                    await deleteDoc(docRef);
+                } catch (err) {
+                    console.error("Erro ao excluir da nuvem:", err);
+                }
+            }
+            const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+            delete localQsts[id];
+            localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
+        };
+
+        window.loadAdminDashboardData = async function() {
+            document.getElementById('dashboard-loading').classList.remove('hidden');
+            document.getElementById('questionnaires-list').classList.add('hidden');
+
+            let allData = [];
+
+            if (db && auth && auth.currentUser) {
+                try {
+                    const qRef = collection(db, 'artifacts', appId, 'public', 'data', 'questionnaires');
+                    const snapshot = await getDocs(qRef);
+                    snapshot.forEach(d => {
+                        allData.push({ id: d.id, ...d.data() });
+                    });
+                } catch(e) {
+                    console.error("Erro ao carregar do Firestore:", e);
+                }
+            }
+
+            const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+            Object.keys(localQsts).forEach(k => {
+                if (!allData.find(d => d.id === k)) {
+                    allData.push({ id: k, ...localQsts[k] });
+                }
+            });
+
+            const listEl = document.getElementById('questionnaires-list');
+            listEl.innerHTML = '';
+
+            if (allData.length === 0) {
+                document.getElementById('dashboard-loading').classList.add('hidden');
+                document.getElementById('questionnaires-list').classList.remove('hidden');
+                listEl.innerHTML = `
+                    <div class="col-span-full text-center py-12 text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 border-dashed">
+                        <i class="ph ph-folder-notch-open text-4xl text-slate-300 mb-2 block"></i>
+                        <p class="text-sm">Nenhum questionário criado ainda.</p>
+                        <button onclick="showUploadScreen()" class="mt-4 text-xs font-bold text-blue-600 hover:text-blue-700">
+                            <i class="ph ph-plus-circle"></i> Criar primeiro questionário
+                        </button>
+                    </div>`;
+                return;
+            }
+
+            allData.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+            allData.forEach(data => {
+                const id = data.id;
+                const createdAt = data.createdAt || Date.now();
+                const dateStr = new Date(createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const answeredCount = (data.items || []).filter(i => i && i.enquadra).length;
+                const totalCount = (data.items || []).length;
+                const pct = totalCount > 0 ? Math.round((answeredCount / totalCount) * 100) : 0;
+
+                listEl.innerHTML += `
+                    <div id="card-${id}" class="bg-slate-50 border border-slate-200 p-5 rounded-2xl flex flex-col gap-3 hover:border-blue-200 hover:shadow-sm transition">
+                        <div class="flex justify-between items-start">
+                            <div class="flex items-center gap-2">
+                                <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                                    <i class="ph ph-clipboard-text text-lg"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-semibold text-sm text-slate-800">${data.name || 'Questionário sem nome'}</h3>
+                                    <p class="text-[11px] text-slate-500">${dateStr}</p>
+                                </div>
+                            </div>
+                            <span class="text-[10px] font-bold px-2 py-0.5 bg-white rounded-md text-slate-600 border border-slate-200">${id}</span>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-white rounded-lg p-2 border border-slate-200">
+                                <p class="text-[10px] uppercase text-slate-400 font-semibold tracking-wide">Itens</p>
+                                <p class="text-sm font-bold text-slate-700">${totalCount}</p>
+                            </div>
+                            <div class="bg-white rounded-lg p-2 border border-slate-200">
+                                <p class="text-[10px] uppercase text-slate-400 font-semibold tracking-wide">Respond.</p>
+                                <p class="text-sm font-bold text-slate-700">${answeredCount}</p>
+                            </div>
+                            <div class="bg-white rounded-lg p-2 border border-slate-200">
+                                <p class="text-[10px] uppercase text-slate-400 font-semibold tracking-wide">Progresso</p>
+                                <p class="text-sm font-bold text-blue-600">${pct}%</p>
+                            </div>
+                        </div>
+
+                        <div class="w-full bg-white rounded-full h-1.5 border border-slate-200 overflow-hidden">
+                            <div class="progress-soft h-full rounded-full" style="width:${pct}%"></div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 pt-1">
+                            <button onclick="copyShareLink('${id}')" class="col-span-1 bg-white hover:bg-blue-50 text-slate-600 hover:text-blue-600 border border-slate-200 hover:border-blue-200 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition">
+                                <i class="ph ph-link-simple"></i> Copiar Link
+                            </button>
+                            <button onclick="openQuestionnaire('${id}')" class="col-span-1 bg-white hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 border border-slate-200 hover:border-emerald-200 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition">
+                                <i class="ph ph-eye"></i> Abrir
+                            </button>
+                            <button onclick="confirmDeleteQuestionnaire('${id}')" class="col-span-1 bg-white hover:bg-red-50 text-slate-600 hover:text-red-600 border border-slate-200 hover:border-red-200 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition">
+                                <i class="ph ph-trash"></i> Excluir
+                            </button>
+                        </div>
+                    </div>`;
+            });
+
+            document.getElementById('dashboard-loading').classList.add('hidden');
+            document.getElementById('questionnaires-list').classList.remove('hidden');
+        };
+
+        // Inicializa
+        initFirebase();
+    </script>
+
+    <script>
+        // ================================
+        // CONFIGURAÇÕES BÁSICAS
+        // ================================
+        const ADMIN_PASSWORD = "admin123"; // Altere antes de publicar
+
+        // ================================
+        // FUNÇÕES GERAIS DE UI
+        // ================================
+        function transitionSections(fromId, toId) {
+            const from = document.getElementById(fromId);
+            const to = document.getElementById(toId);
+            if (!from || !to) return;
+
+            from.classList.add('hidden');
+            from.classList.remove('fade-in', 'flex');
+
+            to.classList.remove('hidden');
+            if (to.tagName === 'SECTION' && (to.id === 'step-2-questionnaire' || to.id === 'step-3-finish')) {
+                to.classList.add('flex');
+            }
+            to.classList.add('fade-in');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function hideAllSections() {
+            ['step-0-welcome','step-admin-dashboard','step-1-upload','step-2-questionnaire','step-3-finish'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.classList.add('hidden');
+                    el.classList.remove('flex');
+                }
+            });
+        }
+
+        function showAlert(title, message) {
+            document.getElementById('alert-title').textContent = title;
+            document.getElementById('alert-message').textContent = message;
+            document.getElementById('alert-box').classList.remove('hidden');
+            document.getElementById('alert-box').classList.add('fade-in');
+            setTimeout(hideAlert, 6000);
+        }
+
+        function hideAlert() {
+            const box = document.getElementById('alert-box');
+            box.classList.add('hidden');
+        }
+
+        function showCustomModal({ title, message, icon, iconClass, buttons }) {
+            const modal = document.getElementById('custom-modal');
+            const content = document.getElementById('custom-modal-content');
+            const iconEl = document.getElementById('custom-modal-icon');
+            const titleEl = document.getElementById('custom-modal-title');
+            const msgEl = document.getElementById('custom-modal-message');
+            const actionsEl = document.getElementById('custom-modal-actions');
+
+            titleEl.textContent = title || 'Aviso';
+            msgEl.textContent = message || '';
+            iconEl.innerHTML = `<i class="${iconClass || 'ph ph-info text-blue-500'}"></i>`;
+            actionsEl.innerHTML = '';
+
+            (buttons || [{ label: 'OK', primary: true }]).forEach(btn => {
+                const b = document.createElement('button');
+                b.textContent = btn.label;
+                b.className = btn.primary
+                    ? 'px-5 py-2.5 text-sm rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition'
+                    : 'px-5 py-2.5 text-sm rounded-xl font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition';
+                b.onclick = () => {
+                    closeCustomModal();
+                    if (typeof btn.onClick === 'function') btn.onClick();
+                };
+                actionsEl.appendChild(b);
+            });
+
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            });
+        }
+
+        function closeCustomModal() {
+            const modal = document.getElementById('custom-modal');
+            const content = document.getElementById('custom-modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            content.classList.remove('scale-100');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        // ================================
+        // WELCOME
+        // ================================
+        function showWelcomeEmpty(message) {
+            const spinner = document.getElementById('loading-spinner');
+            const status = document.getElementById('welcome-status-text');
+            const title = document.getElementById('welcome-title');
+            spinner.classList.add('hidden');
+            title.textContent = 'Acesso via Link';
+            status.innerHTML = message + '<br><br><span class="text-[11px] text-slate-400">Área do fornecedor? Clique em <strong>Admin</strong> no canto superior direito.</span>';
+        }
+
+        // ================================
+        // ADMIN MODAL
+        // ================================
+        function openAdminModal() {
+            const modal = document.getElementById('admin-modal');
+            const content = document.getElementById('admin-modal-content');
+            modal.classList.remove('hidden');
+            requestAnimationFrame(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+                content.classList.add('scale-100');
+            });
+            setTimeout(() => document.getElementById('admin-password').focus(), 100);
+        }
+
+        function closeAdminModal() {
+            const modal = document.getElementById('admin-modal');
+            const content = document.getElementById('admin-modal-content');
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            content.classList.remove('scale-100');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('admin-password').value = '';
+            }, 300);
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') verifyPassword();
+        }
+
+        function verifyPassword() {
+            const input = document.getElementById('admin-password').value;
+            if (input === ADMIN_PASSWORD) {
+                closeAdminModal();
+                showAdminDashboard();
+            } else {
+                showAlert('Senha incorreta', 'Verifique a senha e tente novamente.');
+                document.getElementById('admin-password').value = '';
+            }
+        }
+
+        // ================================
+        // ADMIN DASHBOARD / UPLOAD
+        // ================================
+        function showAdminDashboard() {
+            hideAllSections();
+            const sec = document.getElementById('step-admin-dashboard');
+            sec.classList.remove('hidden');
+            sec.classList.add('fade-in');
+            if (window.loadAdminDashboardData) window.loadAdminDashboardData();
+        }
+
+        function showUploadScreen() {
+            transitionSections('step-admin-dashboard', 'step-1-upload');
+            document.getElementById('file-upload').value = '';
+        }
+
+        function backToDashboard() {
+            transitionSections('step-1-upload', 'step-admin-dashboard');
+            if (window.loadAdminDashboardData) window.loadAdminDashboardData();
+        }
+
+        function generateId(len = 8) {
+            const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            let out = 'qst_';
+            for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+            return out;
+        }
+
+        function downloadTemplate() {
+            const ws = XLSX.utils.aoa_to_sheet([
+                ['Nota','Descrição do Produto / Serviço','NCM','PREVISÃO DE ICMS ST'],
+                ['12345','ADAPTADOR CUNHA AZ 1/0X4/0 C/ESTR.2AWG CAEN-202','85359090','APARELHOS PARA INTERRUPÇÃO, SECCIONAMENTO, PROTEÇÃO, DERIVAÇÃO, LIGAÇÃO OU CONEXÃO DE CIRCUITOS ELÉTRICOS (POR EXEMPLO: INTERRUPTORES, COMUTADORES, CORTA-CIRCUITOS, PARA-RAIOS, LIMITADORES DE TENSÃO, ELIMINADORES DE ONDA, TOMADAS DE CORRENTE E OUTROS CONECTORES, CAIXAS DE JUNÇÃO), PARA TENSÃO SUPERIOR A 1.000V, EXCETO OS DE USO AUTOMOTIVO'],
+                ['12345','CABO ACO RIG.HS 1/4-6,35MM CLASSE A 6,06M/KG','73130000','ARAME FARPADO, DE FERRO OU AÇO; ARAMES OU TIRAS, RETORCIDOS, MESMO FARPADOS, DE FERRO OU AÇO, DOS TIPOS UTILIZADOS EM CERCAS'],
+                ['12345','FIO COBRE NU 6 AWG 8,85M/KG','74081900','NÃO'],
+            ]);
+            ws['!cols'] = [{wch:10},{wch:55},{wch:14},{wch:90}];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Itens NF');
+            XLSX.writeFile(wb, 'modelo-enquadramento-icms-st.xlsx');
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (!['xlsx','xls','ods','csv'].includes(ext)) {
+                showAlert('Arquivo inválido','Envie uma planilha no formato .xlsx, .xls, .ods ou .csv.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const wb = XLSX.read(data, { type: 'array', cellDates: false });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+                    if (!rows || rows.length === 0) {
+                        showAlert('Planilha vazia','A planilha não contém linhas de dados.');
+                        return;
+                    }
+
+                    const normalized = rows.map(r => ({
+                        nota: String(r['Nota'] ?? r['nota'] ?? r['NF'] ?? r['nf'] ?? r['Numero NF'] ?? r['Número NF'] ?? r['numero_nf'] ?? '').trim(),
+                        descricao: String(
+                            r['Descrição do Produto / Serviço'] ??
+                            r['Descrição do Produto'] ??
+                            r['Descrição do Produto/Serviço'] ??
+                            r['Descrição'] ?? r['descricao'] ?? r['Descricao'] ??
+                            r['desc'] ?? r['Produto'] ?? r['produto'] ??
+                            r['Item'] ?? ''
+                        ).trim(),
+                        ncm: String(r['NCM'] ?? r['ncm'] ?? r['Ncm'] ?? r['Codigo NCM'] ?? r['Código NCM'] ?? '').trim(),
+                        previsao_st: String(
+                            r['PREVISÃO DE ICMS ST'] ??
+                            r['PREVISÃO ICMS ST'] ??
+                            r['Previsão de ICMS ST'] ??
+                            r['Previsão ICMS ST'] ??
+                            r['Previsao de ICMS ST'] ??
+                            r['previsao_st'] ??
+                            r['previsao_icms_st'] ??
+                            r['PREVISAO ST'] ??
+                            r['Previsão Legal'] ??
+                            r['Descrição Legal'] ??
+                            r['Descricao Legal'] ??
+                            r['Leis'] ??
+                            r['sh'] ??
+                            r['SH'] ??
+                            ''
+                        ).trim(),
+                        enquadra: '',
+                        observacoes: ''
+                    })).filter(item => item.descricao || item.ncm || item.nota);
+
+                    if (normalized.length === 0) {
+                        showAlert('Nenhum produto válido','Não foi possível identificar produtos na planilha.');
+                        return;
+                    }
+
+                    const id = generateId();
+                    const questionnaire = {
+                        id,
+                        name: file.name.replace(/\.(xlsx|xls|ods|csv)$/i, '').substring(0, 60),
+                        createdAt: Date.now(),
+                        items: normalized
+                    };
+
+                    const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+                    localQsts[id] = questionnaire;
+                    localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
+
+                    if (window.saveDataToCloudRaw) window.saveDataToCloudRaw(questionnaire);
+                    else if (window.saveDataToCloud) {
+                        window.currentQuestionnaireId = id;
+                        window.saveDataToCloud(questionnaire.items);
+                        window.currentQuestionnaireId = null;
+                    }
+
+                    showCustomModal({
+                        title: 'Questionário criado!',
+                        message: `Foram importados ${normalized.length} produtos.\n\nCompartilhe o link abaixo com o cliente.`,
+                        iconClass: 'ph ph-check-circle text-emerald-500',
+                        buttons: [
+                            { label: 'Copiar Link Compartilhável', primary: true, onClick: () => copyShareLink(id) },
+                            { label: 'Voltar ao Painel', onClick: () => backToDashboard() }
+                        ]
+                    });
+
+                } catch (err) {
+                    console.error(err);
+                    showAlert('Erro ao processar','Não foi possível ler a planilha. Verifique o formato.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // ================================
+        // PAINEL ADMIN: AÇÕES
+        // ================================
+        function copyShareLink(id) {
+            const url = window.location.origin + window.location.pathname + '?id=' + id;
+            const fallback = () => {
+                showCustomModal({
+                    title: 'Link do Questionário',
+                    message: url,
+                    iconClass: 'ph ph-link-simple text-blue-500',
+                    buttons: [{ label: 'Fechar', primary: true }]
+                });
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(() => {
+                    showCustomModal({
+                        title: 'Link copiado!',
+                        message: 'O link foi copiado para a área de transferência.\n\n' + url,
+                        iconClass: 'ph ph-check-circle text-emerald-500',
+                        buttons: [{ label: 'OK', primary: true }]
+                    });
+                }).catch(fallback);
+            } else {
+                fallback();
+            }
+        }
+
+        function openQuestionnaire(id) {
+            window.location.search = '?id=' + id;
+        }
+
+        function confirmDeleteQuestionnaire(id) {
+            showCustomModal({
+                title: 'Excluir questionário?',
+                message: 'Esta ação não pode ser desfeita. O questionário e todas as respostas associadas serão removidos.',
+                iconClass: 'ph ph-warning text-amber-500',
+                buttons: [
+                    { label: 'Cancelar' },
+                    { label: 'Sim, excluir', primary: true, onClick: () => deleteQuestionnaire(id) }
+                ]
+            });
+        }
+
+        function deleteQuestionnaire(id) {
+            if (window.deleteFromCloud) window.deleteFromCloud(id);
+            else {
+                const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+                delete localQsts[id];
+                localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
+            }
+            if (window.loadAdminDashboardData) window.loadAdminDashboardData();
+        }
+
+        // ================================
+        // QUESTIONÁRIO (SLIDER)
+        // ================================
+        function renderCard(index) {
+            const total = window.productData.length;
+            const item = window.productData[index] || {};
+            const pct = total > 0 ? Math.round(((index + 1) / total) * 100) : 0;
+
+            document.getElementById('progress-text').textContent = `Produto ${index + 1} de ${total}`;
+            document.getElementById('progress-pct').textContent = `${pct}%`;
+            document.getElementById('progress-bar-fill').style.width = `${pct}%`;
+
+            document.getElementById('btn-prev').disabled = index === 0;
+            const nextBtn = document.getElementById('btn-next');
+            if (index === total - 1) {
+                nextBtn.innerHTML = `Concluir <i class="ph ph-check-circle"></i>`;
+            } else {
+                nextBtn.innerHTML = `Próximo <i class="ph ph-arrow-right"></i>`;
+            }
+
+            const container = document.getElementById('question-content');
+            container.classList.remove('fade-in');
+            void container.offsetWidth;
+            container.classList.add('fade-in');
+
+            const nota = item.nota || item.codigo || '<span class="text-slate-300">—</span>';
+            const descricao = item.descricao || '<span class="text-slate-400 italic">Sem descrição do item</span>';
+            const ncm = item.ncm || '—';
+
+            let prev = (item.previsao_st || '').trim();
+            if (!prev) {
+                const parts = [];
+                if (item.mva_original) parts.push(`MVA Original: ${item.mva_original}`);
+                if (item.mva_ajustada) parts.push(`MVA Ajustada: ${item.mva_ajustada}`);
+                if (item.aliquota_interna) parts.push(`Alíq. Interna: ${item.aliquota_interna}`);
+                if (item.aliquota_externa) parts.push(`Alíq. Interest.: ${item.aliquota_externa}`);
+                if (item.base_calculo) parts.push(`Base Cálculo: ${item.base_calculo}`);
+                prev = parts.join(' \u2022 ');
+            }
+
+            let previsaoHtml;
+            if (!prev) {
+                previsaoHtml = '<span class="text-slate-400 italic">Sem previsão cadastrada.</span>';
+            } else if (prev.toUpperCase() === 'NÃO' || prev.toUpperCase() === 'NAO') {
+                previsaoHtml = `<span class="inline-flex items-center gap-2 text-red-700 font-semibold"><i class="ph ph-prohibit text-lg"></i> Produto SEM previsão de ICMS-ST (NÃO incide)</span>`;
+            } else {
+                previsaoHtml = prev;
+            }
+
+            const current = item.enquadra || '';
+            const obs = item.observacoes || '';
+
+            const isNao = prev && (prev.toUpperCase() === 'NÃO' || prev.toUpperCase() === 'NAO');
+
+            container.innerHTML = `
+                <div class="mb-5">
+                    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+                        <div class="flex items-center gap-3">
+                            <div class="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-xs font-bold tracking-wider flex items-center gap-1.5">
+                                <i class="ph ph-file-text text-base"></i> NF
+                                <span class="text-blue-900 ml-0.5">${nota}</span>
+                            </div>
+                            <span class="text-[11px] font-bold px-3 py-1.5 bg-slate-100 text-slate-700 rounded-lg border border-slate-200 flex items-center gap-1.5">
+                                <i class="ph ph-barcode text-slate-500"></i> NCM ${ncm}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 bg-gradient-to-br from-slate-50 to-white border border-slate-200 rounded-2xl p-4">
+                        <p class="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-1.5 flex items-center gap-1.5">
+                            <i class="ph ph-receipt text-blue-500"></i> Descrição do item na Nota Fiscal
+                        </p>
+                        <p class="text-base font-semibold text-slate-800 leading-relaxed">${descricao}</p>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-blue-50/60 to-white border ${isNao ? 'border-red-200' : 'border-blue-200'} rounded-2xl p-4 mb-2'>
+                        <p class="text-[10px] uppercase tracking-wider ${isNao ? 'text-red-500' : 'text-blue-600'} font-bold mb-1.5 flex items-center gap-1.5">
+                            <i class="ph ${isNao ? 'ph-prohibit' : 'ph-scale'}"></i> ${isNao ? 'Previsão Legal (sem incidência)' : 'Previsão Legal / Descrição SH / Incidência ICMS-ST'}
+                        </p>
+                        <div class="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">${previsaoHtml}</div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <p class="text-xs font-bold text-slate-700 mb-2 flex items-center gap-1.5">
+                        <i class="ph ph-question text-blue-500 text-lg"></i> A descrição do item da nota fiscal se enquadra na descrição legal acima?
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label class="radio-card">
+                            <input type="radio" name="enquadra" value="SIM" class="sr-only" ${current === 'SIM' || current === 'DUVIDA' ? 'checked' : ''}>
+                            <div class="h-full border-2 border-slate-200 bg-white rounded-xl p-3.5 flex items-center gap-3">
+                                <span class="radio-dot w-5 h-5 rounded-full border-2 border-slate-300 flex-shrink-0 transition"></span>
+                                <div>
+                                    <p class="text-sm font-bold text-emerald-700">Sim, se enquadra</p>
+                                    <p class="text-[10px] text-slate-500">Item corresponde à descrição</p>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="radio-card">
+                            <input type="radio" name="enquadra" value="NAO" class="sr-only" ${current === 'NAO' ? 'checked' : ''}>
+                            <div class="h-full border-2 border-slate-200 bg-white rounded-xl p-3.5 flex items-center gap-3">
+                                <span class="radio-dot w-5 h-5 rounded-full border-2 border-slate-300 flex-shrink-0 transition"></span>
+                                <div>
+                                    <p class="text-sm font-bold text-red-700">Não se enquadra</p>
+                                    <p class="text-[10px] text-slate-500">Descrições divergem</p>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="flex-grow">
+                    <label class="text-xs font-bold text-slate-700 mb-1.5 block flex items-center gap-1">
+                        <i class="ph ph-note text-blue-500"></i> Observações <span class="font-normal text-slate-400">(opcional)</span>
+                    </label>
+                    <textarea id="obs-textarea" rows="3" placeholder="Comentários, detalhes ou informações adicionais..." class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none">${obs}</textarea>
+                </div>
+            `;
+        }
+
+        function saveCurrent() {
+            const total = window.productData.length;
+            if (total === 0) return;
+            const idx = window.currentIndex;
+            const radios = document.querySelectorAll('input[name="enquadra"]');
+            let selected = '';
+            radios.forEach(r => { if (r.checked) selected = r.value; });
+            const obsEl = document.getElementById('obs-textarea');
+            const obs = obsEl ? obsEl.value : '';
+            window.productData[idx].enquadra = selected;
+            window.productData[idx].observacoes = obs;
+            if (window.saveDataToCloud) window.saveDataToCloud(window.productData);
+        }
+
+        function prevQuestion() {
+            if (window.currentIndex > 0) {
+                saveCurrent();
+                window.currentIndex--;
+                renderCard(window.currentIndex);
+            }
+        }
+
+        function nextQuestion() {
+            const total = window.productData.length;
+            saveCurrent();
+
+            if (window.currentIndex < total - 1) {
+                window.currentIndex++;
+                renderCard(window.currentIndex);
+            } else {
+                const unanswered = window.productData.filter(i => !i.enquadra).length;
+                if (unanswered > 0) {
+                    showCustomModal({
+                        title: `${unanswered} produto(s) sem resposta`,
+                        message: `Existem ${unanswered} produto(s) que ainda não tiveram enquadramento definido. Deseja concluir mesmo assim?`,
+                        iconClass: 'ph ph-warning text-amber-500',
+                        buttons: [
+                            { label: 'Revisar respostas' },
+                            { label: 'Concluir assim mesmo', primary: true, onClick: () => goToFinish() }
+                        ]
+                    });
+                } else {
+                    goToFinish();
+                }
+            }
+        }
+
+        function goToFinish() {
+            buildPrintReport();
+            transitionSections('step-2-questionnaire', 'step-3-finish');
+            const finish = document.getElementById('step-3-finish');
+            finish.classList.add('fade-in');
+        }
+
+        function restartQuestionnaire() {
+            window.currentIndex = 0;
+            transitionSections('step-3-finish', 'step-2-questionnaire');
+            renderCard(0);
+        }
+
+        // ================================
+        // RELATÓRIO / PDF
+        // ================================
+        function buildPrintReport() {
+            const printContainer = document.getElementById('print-container');
+            const items = window.productData || [];
+            const qid = window.currentQuestionnaireId || '—';
+            const dateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+            const notas = [...new Set(items.map(i => String(i.nota || i.codigo || '').trim()).filter(Boolean))];
+            const notasStr = notas.length ? notas.join(', ') : '—';
+
+            let html = `
+                <div style="margin-bottom:20px;">
+                    <h1 style="font-size:18px; font-weight:700; color:#1e3a8a; margin:0 0 4px;">Validação de Enquadramento ICMS-ST</h1>
+                    <p style="margin:0; font-size:11px; color:#475569;">Questionário: <strong>${qid}</strong> &nbsp;&middot;&nbsp; Emissão: ${dateStr}</p>
+                    <p style="margin:2px 0 0; font-size:11px; color:#64748b;">Nota(s) fiscal(is): <strong>${notasStr}</strong> &nbsp;&middot;&nbsp; Itens: <strong>${items.length}</strong></p>
+                </div>`;
+
+            items.forEach((it, i) => {
+                const enc = (it.enquadra || '').toUpperCase();
+                let badge = '<span class="print-badge pendente">Pendente</span>';
+                if (enc === 'SIM') badge = '<span class="print-badge sim">SE ENQUADRA</span>';
+                else if (enc === 'NAO') badge = '<span class="print-badge nao">NÃO SE ENQUADRA</span>';
+                else if (enc === 'DUVIDA') badge = '<span class="print-badge pendente">Pendente</span>';
+
+                let prev = (it.previsao_st || '').trim();
+                if (!prev) {
+                    const parts = [];
+                    if (it.mva_original) parts.push(`MVA Original: ${it.mva_original}`);
+                    if (it.mva_ajustada) parts.push(`MVA Ajustada: ${it.mva_ajustada}`);
+                    if (it.aliquota_interna) parts.push(`Alíq. Interna: ${it.aliquota_interna}`);
+                    if (it.aliquota_externa) parts.push(`Alíq. Interest.: ${it.aliquota_externa}`);
+                    if (it.base_calculo) parts.push(`Base Cálculo: ${it.base_calculo}`);
+                    prev = parts.join(' | ');
+                }
+                let previsaoTxt = prev;
+                if (!prev) previsaoTxt = '—';
+                else if (prev.toUpperCase() === 'NÃO' || prev.toUpperCase() === 'NAO') previsaoTxt = 'NÃO INCIDE ICMS-ST (SEM PREVISÃO)';
+
+                const nota = it.nota || it.codigo || '—';
+
+                html += `
+                    <div class="print-product-card">
+                        <table style="width:100%; font-size:11px; border-collapse: collapse;">
+                            <tr>
+                                <td style="width:30px; padding:2px 4px; vertical-align:top; color:#94a3b8; font-weight:700;">#${i + 1}</td>
+                                <td style="padding:2px 4px; vertical-align:top;">
+                                    <p style="margin:0 0 4px;">
+                                        <strong>NF:</strong> ${nota} &nbsp;&nbsp;
+                                        <strong>NCM:</strong> ${it.ncm || '—'} &nbsp;&nbsp;
+                                        ${badge}
+                                    </p>
+                                    <p style="margin:0 0 6px;"><strong>Descrição do item na NF:</strong><br>${it.descricao || ''}</p>
+                                    <p style="margin:0 0 6px;"><strong>Previsão Legal / Descrição SH:</strong><br>${previsaoTxt}</p>
+                                    ${it.observacoes ? `<p style="margin:0;"><strong>Observações:</strong><br>${it.observacoes}</p>` : ''}
+                                </td>
+                            </tr>
+                        </table>
+                    </div>`;
+            });
+
+            html += `
+                <div style="margin-top:40px; padding-top:14px; border-top:1px dashed #cbd5e1; font-size:10px; color:#64748b;">
+                    <p style="margin:0 0 3px;"><strong>Assinatura e identificação do respondente</strong></p>
+                    <p style="margin:0;">___________________________________________________________________</p>
+                    <p style="margin-top:3px;">Nome: ______________________________ &nbsp;&nbsp; CPF/CNPJ: ______________________________ &nbsp;&nbsp; Data: ____/____/________</p>
+                </div>
+            `;
+
+            printContainer.innerHTML = html;
+        }
+
+        function processAndGeneratePDF() {
+            buildPrintReport();
+            // Aguarda 50ms para garantir renderização do relatório
+            setTimeout(() => window.print(), 50);
+        }
+
+        // Atalhos de teclado
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAdminModal();
+                closeCustomModal();
+            }
+            const sliderVisible = !document.getElementById('step-2-questionnaire').classList.contains('hidden');
+            if (sliderVisible) {
+                if (e.key === 'ArrowRight') { nextQuestion(); }
+                else if (e.key === 'ArrowLeft') { prevQuestion(); }
+            }
+        });
+    </script>
+</body>
+</html>
