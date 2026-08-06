@@ -75,45 +75,67 @@
         }
 
         @media print {
-            body { background: #fff !important; }
-            header,
-            #alert-box,
-            #btn-prev,
-            #btn-next,
-            .no-print { display: none !important; }
+            @page { margin: 12mm 14mm 14mm 14mm; size: A4; }
 
-            main { padding: 0 !important; max-width: 100% !important; }
-
-            #card-container {
-                border: none !important;
-                box-shadow: none !important;
-                max-height: none !important;
-                overflow: visible !important;
-                border-radius: 0 !important;
+            html, body {
+                background: #fff !important;
+                color: #0f172a !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                min-height: auto !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
 
-            .print-report { display: block !important; }
+            body.printing-mode > *:not(#print-root) {
+                display: none !important;
+            }
+
+            body.printing-mode #print-root {
+                display: block !important;
+            }
+
+            #print-root { display: none; }
+
+            body.printing-mode #print-root {
+                display: block !important;
+                width: 100% !important;
+                max-width: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                background: #fff !important;
+                color: #0f172a !important;
+                font-family: 'Inter', Arial, sans-serif !important;
+                font-size: 12px !important;
+                line-height: 1.4 !important;
+            }
 
             .print-product-card {
                 page-break-inside: avoid;
-                border: 1px solid #e2e8f0;
+                break-inside: avoid;
+                border: 1px solid #cbd5e1;
                 border-radius: 8px;
-                padding: 16px;
-                margin-bottom: 16px;
+                padding: 14px 16px;
+                margin: 0 0 14px 0;
+                background: #fff !important;
             }
             .print-badge {
-                display: inline-block;
-                padding: 2px 10px;
-                border-radius: 999px;
-                font-weight: 600;
-                font-size: 12px;
+                display: inline-block !important;
+                padding: 2px 10px !important;
+                border-radius: 999px !important;
+                font-weight: 700 !important;
+                font-size: 11px !important;
+                border: 1px solid transparent !important;
+                white-space: nowrap !important;
             }
-            .print-badge.sim { background: #dcfce7; color: #166534; }
-            .print-badge.nao { background: #fee2e2; color: #991b1b; }
-            .print-badge.pendente { background: #fef3c7; color: #92400e; }
+            .print-badge.sim { background: #dcfce7 !important; color: #166534 !important; border-color: #bbf7d0 !important; }
+            .print-badge.nao { background: #fee2e2 !important; color: #991b1b !important; border-color: #fecaca !important; }
+            .print-badge.pendente { background: #fef3c7 !important; color: #92400e !important; border-color: #fde68a !important; }
         }
 
-        .print-report { display: none; }
+        body.printing-mode,
+        body.printing-mode * { visibility: visible !important; opacity: 1 !important; }
+        #print-root { display: none; }
     </style>
 </head>
 <body class="text-slate-800 min-h-screen flex flex-col subtle-grid">
@@ -265,8 +287,7 @@
                 </div>
             </div>
 
-            <!-- Relatório para impressão (visível só no @media print) -->
-            <div id="print-container" class="print-report w-full mt-4"></div>
+            <!-- Relatório para impressão (visível só no @media print) — removido daqui (agora fora do main) -->
         </section>
 
         <!-- Tela Final -->
@@ -299,6 +320,9 @@
         </div>
 
     </main>
+
+    <!-- Container do relatório (fora do main, sempre renderizado, controlado por body.printing-mode no @media print) -->
+    <div id="print-root"></div>
 
     <footer class="py-5 text-center text-[11px] text-slate-400 no-print">
         Validação ICMS-ST &middot; Uso interno / cliente &middot; Dados armazenados localmente
@@ -1056,7 +1080,7 @@
         // RELATÓRIO / PDF
         // ================================
         function buildPrintReport() {
-            const printContainer = document.getElementById('print-container');
+            const printContainer = document.getElementById('print-root');
             const items = window.productData || [];
             const qid = window.currentQuestionnaireId || '—';
             const dateStr = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -1065,10 +1089,11 @@
             const notasStr = notas.length ? notas.join(', ') : '—';
 
             let html = `
-                <div style="margin-bottom:20px;">
-                    <h1 style="font-size:18px; font-weight:700; color:#1e3a8a; margin:0 0 4px;">Validação de Enquadramento ICMS-ST</h1>
-                    <p style="margin:0; font-size:11px; color:#475569;">Questionário: <strong>${qid}</strong> &nbsp;&middot;&nbsp; Emissão: ${dateStr}</p>
-                    <p style="margin:2px 0 0; font-size:11px; color:#64748b;">Nota(s) fiscal(is): <strong>${notasStr}</strong> &nbsp;&middot;&nbsp; Itens: <strong>${items.length}</strong></p>
+                <div class="print-report" style="display:block !important; color:#0f172a;">
+                <div style="margin-bottom:20px; padding-bottom:12px; border-bottom:2px solid #1e3a8a;">
+                    <h1 style="font-size:20px; font-weight:800; color:#1e3a8a; margin:0 0 4px; letter-spacing:-0.02em;">Validação de Enquadramento ICMS-ST</h1>
+                    <p style="margin:0; font-size:12px; color:#334155;">Questionário: <strong>${qid}</strong> &nbsp;&middot;&nbsp; Emissão: <strong>${dateStr}</strong></p>
+                    <p style="margin:3px 0 0; font-size:12px; color:#475569;">Nota(s) fiscal(is): <strong>${notasStr}</strong> &nbsp;&middot;&nbsp; Itens: <strong>${items.length}</strong></p>
                 </div>`;
 
             items.forEach((it, i) => {
@@ -1093,21 +1118,24 @@
                 else if (prev.toUpperCase() === 'NÃO' || prev.toUpperCase() === 'NAO') previsaoTxt = 'NÃO INCIDE ICMS-ST (SEM PREVISÃO)';
 
                 const nota = it.nota || it.codigo || '—';
+                const descricao = it.descricao ? String(it.descricao).replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+                const prevSegura = String(previsaoTxt || '').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                const obsSegura = it.observacoes ? String(it.observacoes).replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
 
                 html += `
                     <div class="print-product-card">
-                        <table style="width:100%; font-size:11px; border-collapse: collapse;">
+                        <table style="width:100%; font-size:12px; border-collapse: collapse; table-layout: fixed;">
                             <tr>
-                                <td style="width:30px; padding:2px 4px; vertical-align:top; color:#94a3b8; font-weight:700;">#${i + 1}</td>
-                                <td style="padding:2px 4px; vertical-align:top;">
-                                    <p style="margin:0 0 4px;">
-                                        <strong>NF:</strong> ${nota} &nbsp;&nbsp;
-                                        <strong>NCM:</strong> ${it.ncm || '—'} &nbsp;&nbsp;
+                                <td style="width:34px; padding:3px 6px 3px 0; vertical-align:top; color:#64748b; font-weight:800;">#${i + 1}</td>
+                                <td style="padding:3px 0; vertical-align:top;">
+                                    <p style="margin:0 0 6px;">
+                                        <strong style="color:#1e293b;">NF:</strong> ${nota} &nbsp;&nbsp;
+                                        <strong style="color:#1e293b;">NCM:</strong> ${it.ncm ? String(it.ncm).replace(/</g,'&lt;').replace(/>/g,'&gt;') : '—'} &nbsp;&nbsp;
                                         ${badge}
                                     </p>
-                                    <p style="margin:0 0 6px;"><strong>Descrição do item na NF:</strong><br>${it.descricao || ''}</p>
-                                    <p style="margin:0 0 6px;"><strong>Previsão Legal / Descrição SH:</strong><br>${previsaoTxt}</p>
-                                    ${it.observacoes ? `<p style="margin:0;"><strong>Observações:</strong><br>${it.observacoes}</p>` : ''}
+                                    <p style="margin:0 0 7px;"><strong style="color:#1e293b;">Descrição do item na NF:</strong><br>${descricao || '—'}</p>
+                                    <p style="margin:0 0 7px;"><strong style="color:#1e293b;">Previsão Legal / Descrição SH / Incidência ICMS-ST:</strong><br>${prevSegura}</p>
+                                    ${obsSegura ? `<p style="margin:0;"><strong style="color:#1e293b;">Observações:</strong><br>${obsSegura}</p>` : ''}
                                 </td>
                             </tr>
                         </table>
@@ -1115,20 +1143,37 @@
             });
 
             html += `
-                <div style="margin-top:40px; padding-top:14px; border-top:1px dashed #cbd5e1; font-size:10px; color:#64748b;">
-                    <p style="margin:0 0 3px;"><strong>Assinatura e identificação do respondente</strong></p>
-                    <p style="margin:0;">___________________________________________________________________</p>
-                    <p style="margin-top:3px;">Nome: ______________________________ &nbsp;&nbsp; CPF/CNPJ: ______________________________ &nbsp;&nbsp; Data: ____/____/________</p>
+                <div style="margin-top:40px; padding-top:14px; border-top:1px dashed #cbd5e1; font-size:11px; color:#475569;">
+                    <p style="margin:0 0 6px;"><strong style="color:#0f172a; font-size:12px;">Assinatura e identificação do respondente</strong></p>
+                    <p style="margin:0;">_________________________________________________________________________________________</p>
+                    <p style="margin-top:6px;">Nome: ________________________________________________________ &nbsp;&nbsp; CPF/CNPJ: ______________________________ &nbsp;&nbsp; Data: ____/____/________</p>
                 </div>
-            `;
+            </div>`;
 
             printContainer.innerHTML = html;
         }
 
         function processAndGeneratePDF() {
             buildPrintReport();
-            // Aguarda 50ms para garantir renderização do relatório
-            setTimeout(() => window.print(), 50);
+            // Garante que o conteúdo foi aplicado e renderizado
+            document.body.classList.add('printing-mode');
+            // Dupla estratégia: body.printing-mode para o engine, e também mostra
+            // temporariamente print-root no screen para navegadores que ignoram
+            // a classe no momento de spoolar o PDF.
+            const root = document.getElementById('print-root');
+            const original = root.getAttribute('style') || '';
+            root.setAttribute('style', (original ? original + '; ' : '') + 'display:block !important;');
+
+            setTimeout(() => {
+                try {
+                    window.print();
+                } finally {
+                    setTimeout(() => {
+                        document.body.classList.remove('printing-mode');
+                        root.setAttribute('style', original || '');
+                    }, 350);
+                }
+            }, 220);
         }
 
         // Atalhos de teclado
