@@ -562,9 +562,19 @@
 
     <script>
         // ================================
-        // CONFIGURAÇÕES BÁSICAS
+        // AUTENTICAÇÃO
         // ================================
-        const ADMIN_PASSWORD = "admin123"; // Altere antes de publicar
+
+        async function sha256Hex(value) {
+            const enc = new TextEncoder().encode(String(value));
+            const buf = await crypto.subtle.digest('SHA-256', enc);
+            return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+        }
+
+        // Hash SHA-256 da senha de administrador.
+        // Para gerar um novo hash, rode no console do navegador:
+        //   (async()=>{console.log(await sha256Hex('SUA_NOVA_SENHA'))})()
+        const ADMIN_PASSWORD_HASH = "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9";
 
         // ================================
         // FUNÇÕES GERAIS DE UI
@@ -694,9 +704,14 @@
             if (e.key === 'Enter') verifyPassword();
         }
 
-        function verifyPassword() {
-            const input = document.getElementById('admin-password').value;
-            if (input === ADMIN_PASSWORD) {
+        async function verifyPassword() {
+            const input = document.getElementById('admin-password').value || '';
+            const inputHash = await sha256Hex(input);
+            const matches = (
+                inputHash === ADMIN_PASSWORD_HASH
+            );
+            if (matches) {
+                document.getElementById('admin-password').value = '';
                 closeAdminModal();
                 showAdminDashboard();
             } else {
