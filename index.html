@@ -12,6 +12,77 @@
     <!-- Phosphor Icons -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
+    <script>
+        // ============================================================
+        // UTILS: Compactação (gzip nativo) + Base64URL para links
+        // ============================================================
+        (function () {
+            const u8ToB64 = (u8) => {
+                let bin = '';
+                const CHUNK = 0x8000;
+                for (let i = 0; i < u8.length; i += CHUNK) {
+                    const sub = u8.subarray(i, i + CHUNK);
+                    bin += String.fromCharCode.apply(null, Array.from(sub));
+                }
+                return btoa(bin)
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=+$/, '');
+            };
+            const b64ToU8 = (s) => {
+                const pad = s.length % 4;
+                let b = s.replace(/-/g, '+').replace(/_/g, '/');
+                if (pad) b += '='.repeat(4 - pad);
+                const bin = atob(b);
+                const out = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+                return out;
+            };
+            async function streamGzip(u8, mode) {
+                const fn = mode === 'gzip' ? 'CompressionStream' : 'DecompressionStream';
+                if (typeof CompressionStream === 'undefined' || typeof DecompressionStream === 'undefined') {
+                    return null;
+                }
+                const rs = new ReadableStream({ start(ctl) { ctl.enqueue(u8); ctl.close(); } });
+                const ds = rs.pipeThrough(new window[fn]('gzip'));
+                const reader = ds.getReader();
+                const chunks = []; let total = 0;
+                while (true) {
+                    const r = await reader.read();
+                    if (r.done) break;
+                    chunks.push(r.value); total += r.value.length;
+                }
+                const out = new Uint8Array(total); let o = 0;
+                for (const c of chunks) { out.set(c, o); o += c.length; }
+                return out;
+            }
+            function te(s) { return new TextEncoder().encode(s); }
+            function td(u) { return new TextDecoder('utf-8', { fatal: false }).decode(u); }
+
+            window.encodeLinkPayload = async function (obj) {
+                const raw = JSON.stringify(obj);
+                if (raw.length < 1800) {
+                    return 'j:' + u8ToB64(te(raw));
+                }
+                const gz = await streamGzip(te(raw), 'gzip');
+                if (gz) return 'z:' + u8ToB64(gz);
+                return 'j:' + u8ToB64(te(raw));
+            };
+            window.decodeLinkPayload = async function (token) {
+                if (!token) return null;
+                try {
+                    if (token.startsWith('j:')) return JSON.parse(td(b64ToU8(token.slice(2))));
+                    if (token.startsWith('z:')) {
+                        const raw = b64ToU8(token.slice(2));
+                        const d = await streamGzip(raw, 'gunzip');
+                        return d ? JSON.parse(td(d)) : null;
+                    }
+                } catch (e) { console.warn('decodeLinkPayload falhou', e); }
+                return null;
+            };
+        })();
+    </script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -385,6 +456,45 @@
         window.checkUrlAndLoad = async function() {
             const urlParams = new URLSearchParams(window.location.search);
             const qId = urlParams.get('id');
+            const dataToken = urlParams.get('d');
+
+            if (dataToken) {
+                const decoded = await window.decodeLinkPayload(dataToken);
+                if (decoded && Array.isArray(decoded) && decoded.length > 0) {
+                    if (qId) window.currentQuestionnaireId = qId;
+                    else {
+                        // Garante um ID determinístico baseado no hash dos itens,
+                        // para o progresso salvar consistente.
+                        try {
+                            const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(decoded)));
+                            window.currentQuestionnaireId = 'qst_' + Array.from(new Uint8Array(h)).slice(0, 8).map(b => b.toString(36)).join('');
+                        } catch (_) {
+                            window.currentQuestionnaireId = 'qst_' + Math.random().toString(36).slice(2, 10);
+                        }
+                    }
+                    window.productData = decoded;
+                    transitionSections('step-0-welcome', 'step-2-questionnaire');
+                    renderCard(window.currentIndex);
+                    // Sincroniza no localStorage localmente para backup do progresso
+                    try {
+                        const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+                        if (!localQsts[window.currentQuestionnaireId]) {
+                            localQsts[window.currentQuestionnaireId] = {
+                                id: window.currentQuestionnaireId,
+                                name: `Questionário (${decoded.length} itens)`,
+                                items: decoded,
+                                createdAt: Date.now()
+                            };
+                            localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
+                        } else if (window.saveDataToCloudRaw) {
+                            // continua
+                        }
+                    } catch (_) {}
+                    return;
+                } else {
+                    // Token inválido -> tenta cair no fluxo normal por id
+                }
+            }
 
             if (qId) {
                 window.currentQuestionnaireId = qId;
@@ -841,7 +951,7 @@
 
                     showCustomModal({
                         title: 'Questionário criado!',
-                        message: `Foram importados ${normalized.length} produtos.\n\nCompartilhe o link abaixo com o cliente.`,
+                        message: `Foram importados ${normalized.length} produtos.\n\nO link abaixo já tem os dados embutidos — funciona em qualquer máquina, celular ou navegador.`,
                         iconClass: 'ph ph-check-circle text-emerald-500',
                         buttons: [
                             { label: 'Copiar Link Compartilhável', primary: true, onClick: () => copyShareLink(id) },
@@ -860,12 +970,48 @@
         // ================================
         // PAINEL ADMIN: AÇÕES
         // ================================
-        function copyShareLink(id) {
-            const url = window.location.origin + window.location.pathname + '?id=' + id;
+
+        function loadQuestionnaireById(id) {
+            if (db && auth && auth.currentUser) return null;
+            const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+            return localQsts[id] || null;
+        }
+
+        async function buildShareUrl(id) {
+            let items = null;
+            // 1. Tenta buscar primeiro no localStorage (mais rápido e garantido para admins offline)
+            try {
+                const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+                if (localQsts[id] && Array.isArray(localQsts[id].items)) {
+                    items = localQsts[id].items;
+                }
+            } catch (_) {}
+            // 2. Se não achar e tiver Firestore, busca de lá
+            if (!items && db && auth && auth.currentUser) {
+                try {
+                    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'questionnaires', id));
+                    if (snap.exists() && Array.isArray(snap.data().items)) items = snap.data().items;
+                } catch (_) {}
+            }
+            const base = window.location.origin + window.location.pathname;
+            if (Array.isArray(items) && items.length && window.encodeLinkPayload) {
+                try {
+                    const token = await window.encodeLinkPayload(items);
+                    const qs = new URLSearchParams({ id: id, d: token });
+                    return base + '?' + qs.toString();
+                } catch (e) {
+                    console.warn('encodeLinkPayload falhou, fallback para id', e);
+                }
+            }
+            return base + '?id=' + id;
+        }
+
+        async function copyShareLink(id) {
+            const url = await buildShareUrl(id);
             const fallback = () => {
                 showCustomModal({
                     title: 'Link do Questionário',
-                    message: url,
+                    message: url + '\n\nEsse link funciona em qualquer máquina ou celular — não precisa de login.',
                     iconClass: 'ph ph-link-simple text-blue-500',
                     buttons: [{ label: 'Fechar', primary: true }]
                 });
@@ -874,7 +1020,7 @@
                 navigator.clipboard.writeText(url).then(() => {
                     showCustomModal({
                         title: 'Link copiado!',
-                        message: 'O link foi copiado para a área de transferência.\n\n' + url,
+                        message: 'O link foi copiado para a área de transferência.\n\nEsse link funciona em qualquer máquina, celular ou navegador — os dados do questionário estão embutidos nele, então não depende de login nem de estar na mesma máquina.\n\n' + url,
                         iconClass: 'ph ph-check-circle text-emerald-500',
                         buttons: [{ label: 'OK', primary: true }]
                     });
@@ -884,8 +1030,9 @@
             }
         }
 
-        function openQuestionnaire(id) {
-            window.location.search = '?id=' + id;
+        async function openQuestionnaire(id) {
+            const url = await buildShareUrl(id);
+            window.location.href = url;
         }
 
         function confirmDeleteQuestionnaire(id) {
