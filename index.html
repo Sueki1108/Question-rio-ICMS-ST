@@ -394,6 +394,9 @@
     <!-- Container do relatório (fora do main, sempre renderizado, controlado por body.printing-mode no @media print) -->
     <div id="print-root"></div>
 
+    <!-- Toast container (notificações pequenas, canto inferior direito) -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 max-w-xs pointer-events-none no-print"></div>
+
     <footer class="py-5 text-center text-[11px] text-slate-400 no-print">
         Validação ICMS-ST &middot; Uso interno / cliente &middot; Dados armazenados localmente
     </footer>
@@ -514,36 +517,12 @@
                 const obj = await resp.json();
                 if (obj && Array.isArray(obj.items)) {
                     window.productData = obj.items;
-                    try {
-                        const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
-                        if (!localQsts[id]) {
-                            localQsts[id] = {
-                                id: id,
-                                name: obj.name || `Questionário (${obj.items.length} itens)`,
-                                items: obj.items,
-                                createdAt: obj.createdAt || Date.now()
-                            };
-                            localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
-                        }
-                    } catch (_) {}
                     transitionSections('step-0-welcome', 'step-2-questionnaire');
                     renderCard(window.currentIndex);
                     return true;
                 }
                 if (Array.isArray(obj)) {
                     window.productData = obj;
-                    try {
-                        const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
-                        if (!localQsts[id]) {
-                            localQsts[id] = {
-                                id: id,
-                                name: `Questionário (${obj.length} itens)`,
-                                items: obj,
-                                createdAt: Date.now()
-                            };
-                            localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
-                        }
-                    } catch (_) {}
                     transitionSections('step-0-welcome', 'step-2-questionnaire');
                     renderCard(window.currentIndex);
                     return true;
@@ -943,6 +922,62 @@
             setTimeout(() => modal.classList.add('hidden'), 300);
         }
 
+        // Notificações pequenas (toast) - canto inferior direito, some sozinho
+        function showToast(message, { type = 'success', duration = 3200 } = {}) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const el = document.createElement('div');
+            const bgBorder =
+                type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
+                type === 'error'   ? 'bg-red-50 border-red-200 text-red-900' :
+                type === 'warning' ? 'bg-amber-50 border-amber-200 text-amber-900' :
+                                     'bg-slate-50 border-slate-200 text-slate-800';
+            const iconClass =
+                type === 'success' ? 'ph ph-check-circle text-emerald-500' :
+                type === 'error'   ? 'ph ph-x-circle text-red-500' :
+                type === 'warning' ? 'ph ph-warning text-amber-500' :
+                                     'ph ph-info text-slate-500';
+            el.className = `pointer-events-auto ${bgBorder} border rounded-xl shadow-lg px-3.5 py-2.5 flex items-start gap-2.5 opacity-0 translate-y-3 transition-all duration-300`;
+            el.innerHTML =
+                `<i class="${iconClass} mt-0.5 shrink-0"></i>` +
+                `<div class="text-[12.5px] leading-snug flex-1 break-words">${(message || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</div>`;
+            container.prepend(el);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    el.classList.remove('opacity-0', 'translate-y-3');
+                });
+            });
+            setTimeout(() => {
+                el.classList.add('opacity-0', 'translate-y-3');
+                setTimeout(() => el.remove(), 350);
+            }, duration);
+        }
+
+        // Migração: limpa o questionário de exemplo residual (nf_exemplo / qst_8iukqksg)
+        // que foi gravado por bug na v1 (visualização de link não devia persistir)
+        (function runLegacyCleanupOnce() {
+            try {
+                const key = 'local_questionnaires';
+                const raw = localStorage.getItem(key);
+                if (!raw) return;
+                let obj; try { obj = JSON.parse(raw); } catch (_) { return; }
+                if (!obj || typeof obj !== 'object') return;
+                let changed = false;
+                Object.keys(obj).forEach(k => {
+                    const v = obj[k];
+                    if (!v) return;
+                    const name = String(v.name || '').toLowerCase();
+                    const isLegacy =
+                        k === 'qst_8iukqksg' ||
+                        name.indexOf('nf_exemplo') >= 0 ||
+                        name.indexOf('nf exemplo') >= 0 ||
+                        (name === 'questionário (3 itens)' && Array.isArray(v.items) && v.items.length === 3 && v.items.some(it => String(it.nota || it.nf || '') === 'NF-001'));
+                    if (isLegacy) { delete obj[k]; changed = true; }
+                });
+                if (changed) localStorage.setItem(key, JSON.stringify(obj));
+            } catch (_) {}
+        })();
+
         // ================================
         // WELCOME
         // ================================
@@ -1232,142 +1267,77 @@
                 });
             };
 
-            // Sem PAT: mostra modal com input para cadastrar o token
-            if (!hasPat) {
-                showCustomModal({
-                    title: 'Configurar publicação automática',
-                    iconClass: 'ph ph-key text-blue-500',
-                    html: `
-                        <p class="mb-4 text-left text-slate-600 text-sm leading-relaxed">
-                            Para publicar o questionário com <strong>1 clique</strong> e gerar o link curto automaticamente,
-                            cole abaixo seu token do GitHub (fine-grained) com permissões de <strong>Contents: Read and write</strong> no repositório <em>Question-rio-ICMS-ST</em>.
-                        </p>
-                        <input id="gh-pat-input" spellcheck="false" type="password" autocomplete="off"
-                               placeholder="github_pat_..."
-                               class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm mb-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
-                        <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">
-                            Dica: abra <a class="text-blue-700 underline" target="_blank" rel="noopener noreferrer" href="https://github.com/settings/tokens?type=beta">https://github.com/settings/tokens?type=beta</a>,
-                            edite seu token e adicione permissão <strong>Repository permissions → Contents → Read and write</strong>.
-                            O token fica salvo <strong>só no seu navegador</strong> (localStorage), não é enviado a nenhum outro lugar.
-                        </p>
-                    `,
-                    buttons: [
-                        { label: 'Pular (modo manual)', onClick: () => showFallback('') },
-                        { label: 'Salvar Token e Publicar Agora', primary: true, onClick: async () => {
-                            const inp = document.getElementById('gh-pat-input');
-                            const v = (inp && inp.value) ? inp.value.trim() : '';
-                            if (!v) { showAlert('Token obrigatório','Cole o token do GitHub para publicar.'); return; }
-                            setGitHubPat(v);
-                            try {
-                                await publishQuestionnaireJson(id);
-                            } catch (e) {
-                                setGitHubPat('');
-                                showFallback(String(e && e.message ? e.message : e));
-                                return;
-                            }
-                            const ok = await copyText(shortUrl);
-                            showCustomModal({
-                                title: ok ? 'Link curto copiado!' : 'Link curto gerado!',
-                                iconClass: 'ph ph-check-circle text-emerald-500',
-                                html: `
-                                    <p class="mb-3 text-left text-slate-600 text-sm leading-relaxed">
-                                        Questionário publicado. Aguarde <strong>~30 segundos</strong> para o GitHub propagar o arquivo, depois envie o link abaixo por e-mail/WhatsApp.
-                                    </p>
-                                    <div class="flex items-center gap-2">
-                                        <code class="flex-1 text-[11px] bg-slate-50 border border-emerald-200 rounded-lg px-2 py-2 break-all text-emerald-800 font-mono">${shortUrl}</code>
-                                        <button type="button" id="btn-copy-short-url-final" class="text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition shrink-0 flex items-center gap-1"><i class="ph ph-copy"></i> Copiar</button>
-                                    </div>
-                                `,
-                                buttons: [{ label: 'Fechar', primary: true }]
-                            });
-                            setTimeout(() => {
-                                const b = document.getElementById('btn-copy-short-url-final');
-                                if (b) b.onclick = async (e) => { e.preventDefault(); const o = await copyText(shortUrl); if (o) flashBtn(b,'Copiado!','Copiar'); };
-                            }, 0);
-                        } }
-                    ]
-                });
+            // ============================================================
+            // CASO A: JÁ TEM TOKEN SALVO — fluxo SILENCIOSO (sem modais!)
+            // - Tenta publicar no GitHub em background
+            // - Se sucesso: copia link + toast verde minúsculo
+            // - Se erro:    toast vermelho (não abre modal grande)
+            // ============================================================
+            if (hasPat) {
+                try {
+                    await publishQuestionnaireJson(id);
+                } catch (e) {
+                    const msg = String(e && e.message ? e.message : e);
+                    const copiedAnyway = await copyText(shortUrl);
+                    showToast(
+                        (copiedAnyway ? 'Link copiado (ainda não publicado no GitHub). ' : '') +
+                        'Erro ao publicar no GitHub: ' + msg,
+                        { type: 'error', duration: 6500 }
+                    );
+                    return;
+                }
+                const ok = await copyText(shortUrl);
+                showToast(
+                    ok ? `Link copiado! ${shortUrl}` : `Link gerado (copie manualmente): ${shortUrl}`,
+                    { type: 'success', duration: 5500 }
+                );
                 return;
             }
 
-            // Tem PAT: tenta publicar automático
+            // ============================================================
+            // CASO B: NÃO TEM TOKEN — mostra modal de configuração 1 vez
+            // ============================================================
             showCustomModal({
-                title: 'Publicando questionário...',
-                iconClass: 'ph ph-spinner animate-spin text-blue-500',
-                html: `<p class="mb-2 text-left text-slate-600 text-sm leading-relaxed">Criando arquivo <code>data/${id}.json</code> no repositório via API do GitHub...</p>`,
-                buttons: []
+                title: 'Configurar publicação automática',
+                iconClass: 'ph ph-key text-blue-500',
+                html: `
+                    <p class="mb-4 text-left text-slate-600 text-sm leading-relaxed">
+                        Para publicar o questionário com <strong>1 clique</strong> e gerar o link curto automaticamente,
+                        cole abaixo seu token do GitHub (fine-grained) com permissões de <strong>Contents: Read and write</strong> no repositório <em>Question-rio-ICMS-ST</em>.
+                    </p>
+                    <input id="gh-pat-input" spellcheck="false" type="password" autocomplete="off"
+                           placeholder="github_pat_..."
+                           class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm mb-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">
+                        Dica: abra <a class="text-blue-700 underline" target="_blank" rel="noopener noreferrer" href="https://github.com/settings/tokens?type=beta">https://github.com/settings/tokens?type=beta</a>,
+                        edite seu token e adicione permissão <strong>Repository permissions → Contents → Read and write</strong>.
+                        O token fica salvo <strong>só no seu navegador</strong> (localStorage), não é enviado a nenhum outro lugar.
+                    </p>
+                `,
+                buttons: [
+                    { label: 'Pular (modo manual)', onClick: () => showFallback('') },
+                    { label: 'Salvar Token e Publicar Agora', primary: true, onClick: async () => {
+                        const inp = document.getElementById('gh-pat-input');
+                        const v = (inp && inp.value) ? inp.value.trim() : '';
+                        if (!v) { showAlert('Token obrigatório','Cole o token do GitHub para publicar.'); return; }
+                        setGitHubPat(v);
+                        try {
+                            await publishQuestionnaireJson(id);
+                        } catch (e) {
+                            setGitHubPat('');
+                            const msg = String(e && e.message ? e.message : e);
+                            showFallback(msg);
+                            return;
+                        }
+                        const ok = await copyText(shortUrl);
+                        closeCustomModal();
+                        showToast(
+                            ok ? `Link copiado! ${shortUrl}` : `Link gerado: ${shortUrl}`,
+                            { type: 'success', duration: 5500 }
+                        );
+                    } }
+                ]
             });
-            const closeBtn = null;
-            try {
-                await publishQuestionnaireJson(id);
-                const ok = await copyText(shortUrl);
-                showCustomModal({
-                    title: ok ? 'Link curto copiado!' : 'Link curto gerado!',
-                    iconClass: 'ph ph-check-circle text-emerald-500',
-                    html: `
-                        <p class="mb-3 text-left text-slate-600 text-sm leading-relaxed">
-                            Questionário publicado com sucesso. Aguarde <strong>~30 segundos</strong> para o GitHub propagar o arquivo <code>data/${id}.json</code>,
-                            depois compartilhe o link abaixo por e-mail/WhatsApp. Funciona em qualquer máquina.
-                        </p>
-                        <div class="flex items-center gap-2">
-                            <code class="flex-1 text-[11px] bg-slate-50 border border-emerald-200 rounded-lg px-2 py-2 break-all text-emerald-800 font-mono">${shortUrl}</code>
-                            <button type="button" id="btn-copy-short-url-final" class="text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition shrink-0 flex items-center gap-1"><i class="ph ph-copy"></i> Copiar</button>
-                        </div>
-                    `,
-                    buttons: [{ label: 'Fechar', primary: true }]
-                });
-                setTimeout(() => {
-                    const b = document.getElementById('btn-copy-short-url-final');
-                    if (b) b.onclick = async (e) => { e.preventDefault(); const o = await copyText(shortUrl); if (o) flashBtn(b,'Copiado!','Copiar'); };
-                }, 0);
-            } catch (e) {
-                const msg = String(e && e.message ? e.message : e);
-                // Tela de erro pergunta: tentar manual (fallback) OU atualizar token
-                showCustomModal({
-                    title: 'Não foi possível publicar automaticamente',
-                    iconClass: 'ph ph-warning text-amber-500',
-                    html: `
-                        <div class="text-left bg-amber-50 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 mb-4 whitespace-pre-wrap break-all">${msg.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</div>
-                        <p class="mb-2 text-left text-slate-600 text-sm leading-relaxed">
-                            Você pode atualizar seu Token do GitHub ou gerar o link pelo modo manual abaixo.
-                        </p>
-                        <input id="gh-pat-input-retry" spellcheck="false" type="password" autocomplete="off" placeholder="Atualizar token (github_pat_...) — opcional" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm mb-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
-                    `,
-                    buttons: [
-                        { label: 'Modo manual', onClick: () => showFallback(msg) },
-                        { label: 'Atualizar token e tentar', primary: true, onClick: async () => {
-                            const inp = document.getElementById('gh-pat-input-retry');
-                            const v = (inp && inp.value) ? inp.value.trim() : '';
-                            if (v) setGitHubPat(v);
-                            try {
-                                await publishQuestionnaireJson(id);
-                            } catch (e2) {
-                                showFallback(String(e2 && e2.message ? e2.message : e2));
-                                return;
-                            }
-                            const ok = await copyText(shortUrl);
-                            showCustomModal({
-                                title: ok ? 'Link curto copiado!' : 'Link curto gerado!',
-                                iconClass: 'ph ph-check-circle text-emerald-500',
-                                html: `
-                                    <p class="mb-3 text-left text-slate-600 text-sm leading-relaxed">
-                                        Questionário publicado. Aguarde <strong>~30s</strong> para o GitHub propagar o arquivo, depois envie o link abaixo.
-                                    </p>
-                                    <div class="flex items-center gap-2">
-                                        <code class="flex-1 text-[11px] bg-slate-50 border border-emerald-200 rounded-lg px-2 py-2 break-all text-emerald-800 font-mono">${shortUrl}</code>
-                                        <button type="button" id="btn-copy-short-url-final" class="text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition shrink-0 flex items-center gap-1"><i class="ph ph-copy"></i> Copiar</button>
-                                    </div>
-                                `,
-                                buttons: [{ label: 'Fechar', primary: true }]
-                            });
-                            setTimeout(() => {
-                                const b = document.getElementById('btn-copy-short-url-final');
-                                if (b) b.onclick = async (e) => { e.preventDefault(); const o = await copyText(shortUrl); if (o) flashBtn(b,'Copiado!','Copiar'); };
-                            }, 0);
-                        } }
-                    ]
-                });
-            }
         }
 
         function flashBtn(btn, activeLabel, originalLabel) {
