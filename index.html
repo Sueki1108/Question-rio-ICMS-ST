@@ -825,6 +825,15 @@
             document.getElementById('questionnaires-list').classList.remove('hidden');
         };
 
+        // Expor helpers para window (pois este bloco é <script type="module"> e NÃO cria globais automaticamente)
+        window.getGitHubPat = getGitHubPat;
+        window.setGitHubPat = setGitHubPat;
+        window.githubApi = githubApi;
+        window.toBase64Utf8 = toBase64Utf8;
+        window.publishQuestionnaireJson = publishQuestionnaireJson;
+        window.loadQuestionnaireFromJsonRepo = loadQuestionnaireFromJsonRepo;
+        window.initFirebase = initFirebase;
+
         // Inicializa
         initFirebase();
     </script>
