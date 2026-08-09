@@ -512,7 +512,7 @@
                 const resp = await fetch(jsonUrl, { cache: 'no-store' });
                 if (!resp.ok) return false;
                 const obj = await resp.json();
-                if (obj && Array.isArray(obj.items) {
+                if (obj && Array.isArray(obj.items)) {
                     window.productData = obj.items;
                     try {
                         const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
