@@ -1,0 +1,22 @@
+{
+  "id": "qst_8iukqksg",
+  "name": "nf_exemplo",
+  "createdAt": 1786239811577,
+  "items": [
+    {
+      "nota": "NF-001",
+      "descricao": "Adaptador USB-C para HDMI 4K",
+      "ncm": "8517.62.00"
+    },
+    {
+      "nota": "NF-002",
+      "descricao": "Cabo de aço galvanizado",
+      "ncm": "7312.10.00"
+    },
+    {
+      "nota": "NF-003",
+      "descricao": "Resistor cerâmico 10kΩ",
+      "ncm": "8533.21.00"
+    }
+  ]
+}
