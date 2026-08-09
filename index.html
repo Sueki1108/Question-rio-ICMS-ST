@@ -463,8 +463,6 @@
                 if (decoded && Array.isArray(decoded) && decoded.length > 0) {
                     if (qId) window.currentQuestionnaireId = qId;
                     else {
-                        // Garante um ID determinístico baseado no hash dos itens,
-                        // para o progresso salvar consistente.
                         try {
                             const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(decoded)));
                             window.currentQuestionnaireId = 'qst_' + Array.from(new Uint8Array(h)).slice(0, 8).map(b => b.toString(36)).join('');
@@ -475,7 +473,6 @@
                     window.productData = decoded;
                     transitionSections('step-0-welcome', 'step-2-questionnaire');
                     renderCard(window.currentIndex);
-                    // Sincroniza no localStorage localmente para backup do progresso
                     try {
                         const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
                         if (!localQsts[window.currentQuestionnaireId]) {
@@ -486,22 +483,94 @@
                                 createdAt: Date.now()
                             };
                             localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
-                        } else if (window.saveDataToCloudRaw) {
-                            // continua
                         }
                     } catch (_) {}
                     return;
-                } else {
-                    // Token inválido -> tenta cair no fluxo normal por id
                 }
             }
 
             if (qId) {
                 window.currentQuestionnaireId = qId;
+                // 1. Tenta carregar via JSON público hospedado no próprio repositório (opção A, link curto)
+                try {
+                    const loaded = await loadQuestionnaireFromJsonRepo(qId);
+                    if (loaded) return;
+                } catch (_) {}
+                // 2. Depois tenta Firebase (se houver)
+                // 3. Por último localStorage
                 await loadSpecificQuestionnaire(qId);
             } else {
                 showWelcomeEmpty("Acesse através do link fornecido pelo seu fornecedor.");
             }
+        };
+
+        async function loadQuestionnaireFromJsonRepo(id) {
+            if (!id) return false;
+            const jsonUrl = window.getJsonRepoUrl(id);
+            if (!jsonUrl) return false;
+            try {
+                const resp = await fetch(jsonUrl, { cache: 'no-store' });
+                if (!resp.ok) return false;
+                const obj = await resp.json();
+                if (obj && Array.isArray(obj.items) {
+                    window.productData = obj.items;
+                    try {
+                        const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+                        if (!localQsts[id]) {
+                            localQsts[id] = {
+                                id: id,
+                                name: obj.name || `Questionário (${obj.items.length} itens)`,
+                                items: obj.items,
+                                createdAt: obj.createdAt || Date.now()
+                            };
+                            localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
+                        }
+                    } catch (_) {}
+                    transitionSections('step-0-welcome', 'step-2-questionnaire');
+                    renderCard(window.currentIndex);
+                    return true;
+                }
+                if (Array.isArray(obj)) {
+                    window.productData = obj;
+                    try {
+                        const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
+                        if (!localQsts[id]) {
+                            localQsts[id] = {
+                                id: id,
+                                name: `Questionário (${obj.length} itens)`,
+                                items: obj,
+                                createdAt: Date.now()
+                            };
+                            localStorage.setItem('local_questionnaires', JSON.stringify(localQsts));
+                        }
+                    } catch (_) {}
+                    transitionSections('step-0-welcome', 'step-2-questionnaire');
+                    renderCard(window.currentIndex);
+                    return true;
+                }
+            } catch (e) {
+                console.warn('loadQuestionnaireFromJsonRepo falhou', e);
+            }
+            return false;
+        }
+
+        window.getJsonRepoUrl = function(id) {
+            // Aponta para a pasta data/ do próprio repositório no branch main via raw.githubusercontent.com
+            const repo = window.JSON_REPO || {
+                owner: 'Sueki1108',
+                repo: 'Question-rio-ICMS-ST',
+                branch: 'main'
+            };
+            return `https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${repo.branch}/data/${encodeURIComponent(id)}.json`;
+        };
+
+        window.getCreateFileOnGithubUrl = function(id) {
+            const repo = window.JSON_REPO || {
+                owner: 'Sueki1108',
+                repo: 'Question-rio-ICMS-ST',
+                branch: 'main'
+            };
+            return `https://github.com/${repo.owner}/${repo.repo}/new/${repo.branch}/data/${encodeURIComponent(id)}.json`;
         };
 
         async function loadSpecificQuestionnaire(id) {
@@ -728,7 +797,7 @@
             box.classList.add('hidden');
         }
 
-        function showCustomModal({ title, message, icon, iconClass, buttons }) {
+        function showCustomModal({ title, message, html, icon, iconClass, buttons }) {
             const modal = document.getElementById('custom-modal');
             const content = document.getElementById('custom-modal-content');
             const iconEl = document.getElementById('custom-modal-icon');
@@ -737,7 +806,11 @@
             const actionsEl = document.getElementById('custom-modal-actions');
 
             titleEl.textContent = title || 'Aviso';
-            msgEl.textContent = message || '';
+            if (typeof html === 'string' && html.length) {
+                msgEl.innerHTML = html;
+            } else {
+                msgEl.textContent = message || '';
+            }
             iconEl.innerHTML = `<i class="${iconClass || 'ph ph-info text-blue-500'}"></i>`;
             actionsEl.innerHTML = '';
 
@@ -951,10 +1024,10 @@
 
                     showCustomModal({
                         title: 'Questionário criado!',
-                        message: `Foram importados ${normalized.length} produtos.\n\nO link abaixo já tem os dados embutidos — funciona em qualquer máquina, celular ou navegador.`,
+                        message: `Foram importados ${normalized.length} produtos.\n\nClique em "Avançar" para gerar o link curto e publicar os dados.`,
                         iconClass: 'ph ph-check-circle text-emerald-500',
                         buttons: [
-                            { label: 'Copiar Link Compartilhável', primary: true, onClick: () => copyShareLink(id) },
+                            { label: 'Gerar Link Curto (publicar)', primary: true, onClick: () => copyShareLink(id) },
                             { label: 'Voltar ao Painel', onClick: () => backToDashboard() }
                         ]
                     });
@@ -977,62 +1050,124 @@
             return localQsts[id] || null;
         }
 
-        async function buildShareUrl(id) {
-            let items = null;
-            // 1. Tenta buscar primeiro no localStorage (mais rápido e garantido para admins offline)
+        function buildShortShareUrl(id) {
+            const base = window.location.origin + window.location.pathname;
+            // Remove qualquer ?id=... da base (pois a página é sempre /index.html ou /)
+            const cleanBase = base.split('?')[0].split('#')[0];
+            return cleanBase + '?id=' + encodeURIComponent(id);
+        }
+
+        function getQuestionnaireJsonBundle(id) {
+            let data = null;
             try {
                 const localQsts = JSON.parse(localStorage.getItem('local_questionnaires') || '{}');
-                if (localQsts[id] && Array.isArray(localQsts[id].items)) {
-                    items = localQsts[id].items;
-                }
+                data = localQsts[id] || null;
             } catch (_) {}
-            // 2. Se não achar e tiver Firestore, busca de lá
-            if (!items && db && auth && auth.currentUser) {
-                try {
-                    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'questionnaires', id));
-                    if (snap.exists() && Array.isArray(snap.data().items)) items = snap.data().items;
-                } catch (_) {}
-            }
-            const base = window.location.origin + window.location.pathname;
-            if (Array.isArray(items) && items.length && window.encodeLinkPayload) {
-                try {
-                    const token = await window.encodeLinkPayload(items);
-                    const qs = new URLSearchParams({ id: id, d: token });
-                    return base + '?' + qs.toString();
-                } catch (e) {
-                    console.warn('encodeLinkPayload falhou, fallback para id', e);
-                }
-            }
-            return base + '?id=' + id;
+            if (!data || !Array.isArray(data.items)) return { items: [] };
+            const bundle = {
+                id: data.id,
+                name: data.name,
+                createdAt: data.createdAt || Date.now(),
+                items: (data.items || []).map(it => ({
+                    nota: it.nota,
+                    codigo: it.codigo,
+                    descricao: it.descricao,
+                    ncm: it.ncm,
+                    previsao: it.previsao
+                }))
+            };
+            return bundle;
         }
 
         async function copyShareLink(id) {
-            const url = await buildShareUrl(id);
-            const fallback = () => {
-                showCustomModal({
-                    title: 'Link do Questionário',
-                    message: url + '\n\nEsse link funciona em qualquer máquina ou celular — não precisa de login.',
-                    iconClass: 'ph ph-link-simple text-blue-500',
-                    buttons: [{ label: 'Fechar', primary: true }]
-                });
+            const shortUrl = buildShortShareUrl(id);
+            const bundle = getQuestionnaireJsonBundle(id);
+            const jsonStr = JSON.stringify(bundle, null, 2);
+            const createFileUrl = window.getCreateFileOnGithubUrl(id);
+            const jsonUrl = window.getJsonRepoUrl(id);
+            const copyText = async (text) => {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        return true;
+                    } catch (_) {}
+                }
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    return true;
+                } catch (_) {}
+                return false;
             };
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(url).then(() => {
-                    showCustomModal({
-                        title: 'Link copiado!',
-                        message: 'O link foi copiado para a área de transferência.\n\nEsse link funciona em qualquer máquina, celular ou navegador — os dados do questionário estão embutidos nele, então não depende de login nem de estar na mesma máquina.\n\n' + url,
-                        iconClass: 'ph ph-check-circle text-emerald-500',
-                        buttons: [{ label: 'OK', primary: true }]
-                    });
-                }).catch(fallback);
-            } else {
-                fallback();
-            }
+
+            showCustomModal({
+                title: 'Link compartilhável (curto)',
+                iconClass: 'ph ph-link-simple text-blue-500',
+                html: `
+                    <p class="mb-4 text-left text-slate-600 text-sm leading-relaxed">
+                        Para usar <strong>link curto</strong> (cerca de 80 caracteres), basta <strong>publicar os dados do questionário no GitHub</strong> (1 vez, ~30 segundos).
+                    </p>
+                    <div class="text-left bg-blue-50 border border-blue-100 rounded-xl p-3.5 mb-4">
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-blue-700 mb-1.5">Passo 1 (copie o JSON)</p>
+                        <div class="relative">
+                            <textarea id="json-bundle-textarea" spellcheck="false" readonly class="w-full h-28 text-[11px] font-mono bg-white border border-blue-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-400 resize-none">${(jsonStr || '').replace(/[<>&]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;' })[c])}</textarea>
+                        </div>
+                        <div class="flex justify-end mt-2 gap-2">
+                            <button type="button" id="btn-copy-json" class="text-[11px] font-bold bg-white hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                                <i class="ph ph-copy"></i> Copiar JSON
+                            </button>
+                        </div>
+                    </div>
+                    <div class="text-left bg-slate-50 border border-slate-200 rounded-xl p-3.5 mb-4">
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-slate-600 mb-1.5">Passo 2 (crie o arquivo no GitHub)</p>
+                        <p class="text-xs text-slate-600 mb-2 leading-relaxed">Abra o link abaixo, <strong>cole o JSON copiado</strong> no editor da página e clique em <strong class="text-emerald-700">Commit new file</strong>.</p>
+                        <a id="btn-open-create" href="${createFileUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs font-bold text-blue-700 hover:text-blue-800 underline break-all">
+                            <i class="ph ph-arrow-up-right"></i> ${createFileUrl}
+                        </a>
+                    </div>
+                    <div class="text-left bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 mb-4">
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-emerald-700 mb-1.5">Passo 3 (link curto para enviar)</p>
+                        <p class="text-[11px] text-slate-500 mb-2">Depois de dar "Commit new file", envie esse link curto ao cliente:</p>
+                        <div class="flex items-center gap-2">
+                            <code id="short-url-code" class="flex-1 text-[11px] bg-white border border-emerald-200 rounded-lg px-2 py-2 break-all text-emerald-800 font-mono">${shortUrl}</code>
+                            <button type="button" id="btn-copy-short-url" class="text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition shrink-0 flex items-center gap-1">
+                                <i class="ph ph-copy"></i> Copiar
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2">Dica: aguarde ~30 segundos após o commit para o arquivo ficar disponível publicamente.</p>
+                    </div>
+                `,
+                buttons: [{ label: 'Fechar', primary: true }]
+            });
+
+            requestAnimationFrame(() => {
+                const b1 = document.getElementById('btn-copy-json');
+                const b2 = document.getElementById('btn-copy-short-url');
+                const a1 = document.getElementById('btn-open-create');
+                if (b1) b1.onclick = async (e) => { e.preventDefault(); const ok = await copyText(jsonStr); if (ok) flashBtn(b1, 'Copiado!', 'Copiar JSON'); };
+                if (b2) b2.onclick = async (e) => { e.preventDefault(); const ok = await copyText(shortUrl); if (ok) flashBtn(b2, 'Copiado!', 'Copiar'); };
+                if (a1) a1.setAttribute('href', createFileUrl);
+            });
         }
 
-        async function openQuestionnaire(id) {
-            const url = await buildShareUrl(id);
-            window.location.href = url;
+        function flashBtn(btn, activeLabel, originalLabel) {
+            if (!btn) return;
+            const old = btn.innerHTML;
+            const icon = btn.querySelector('i');
+            const iconHtml = icon ? icon.outerHTML : '';
+            const prefix = iconHtml ? iconHtml + ' ' : '';
+            btn.innerHTML = `${prefix}<span>${activeLabel}</span>`;
+            setTimeout(() => {
+                btn.innerHTML = old || `${prefix}${originalLabel}`;
+            }, 1200);
+        }
+
+        function openQuestionnaire(id) {
+            window.location.href = buildShortShareUrl(id);
         }
 
         function confirmDeleteQuestionnaire(id) {

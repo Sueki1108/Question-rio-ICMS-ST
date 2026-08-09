@@ -1,0 +1,34 @@
+{
+    "id":  "qst_exemplo",
+    "name":  "Questionário de exemplo (3 produtos)",
+    "createdAt":  1786236994317,
+    "items":  [
+                  {
+                      "nota":  "12345",
+                      "codigo":  null,
+                      "descricao":  "ADAPTADOR CUNHA AZ 1/0X4/0 C/ESTR.2AWG CAEN-202",
+                      "ncm":  "85359090",
+                      "previsao":  "APARELHOS PARA INTERRUPÇÃO, SECCIONAMENTO, PROTEÇÃO, DERIVAÇÃO, LIGAÇÃO OU CONEXÃO DE CIRCUITOS ELÉTRICOS...",
+                      "enquadra":  "",
+                      "observacoes":  ""
+                  },
+                  {
+                      "nota":  "12345",
+                      "codigo":  null,
+                      "descricao":  "CABO ACO RIG.HS 1/4-6,35MM CLASSE A 6,06M/KG",
+                      "ncm":  "73130000",
+                      "previsao":  "ARAME FARPADO, DE FERRO OU AÇO; ARAMES OU TIRAS, RETORCIDOS...",
+                      "enquadra":  "",
+                      "observacoes":  ""
+                  },
+                  {
+                      "nota":  "12345",
+                      "codigo":  null,
+                      "descricao":  "FIO COBRE NU 6 AWG 8,85M/KG",
+                      "ncm":  "74081900",
+                      "previsao":  "NÃO",
+                      "enquadra":  "",
+                      "observacoes":  ""
+                  }
+              ]
+}
